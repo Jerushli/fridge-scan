@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Refrigerator, ShoppingBasket, ChefHat, Plus, Trash2, Check, X, RefreshCw, Sparkles, AlertCircle, Leaf, ArrowRight, Image as ImageIcon } from "lucide-react";
+import React from 'react';
 
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 async function api(path, options = {}) {
@@ -61,6 +62,38 @@ export default function App() {
     }, "image/jpeg", 0.88);
     setStreamError("");
   }
+  
+  function handleFileUpload(event) {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = "";
+
+    const validFiles = selectedFiles.filter(file =>
+      file.type.startsWith("image/")
+    );
+
+    if (validFiles.length !== selectedFiles.length) {
+      setStreamError("Please select image files only.");
+    } else {
+      setStreamError("");
+    }
+
+    setPhotos(old => {
+      const availableSlots = 3 - old.length;
+      const filesToAdd = validFiles.slice(0, availableSlots);
+
+      if (validFiles.length > availableSlots) {
+        setStreamError("You can select up to 3 photos in total.");
+      }
+
+      const newPhotos = filesToAdd.map(file => ({
+        file,
+        url: URL.createObjectURL(file)
+      }));
+
+      return [...old, ...newPhotos];
+    });
+  }
+
   function removePhoto(index) {
     setPhotos(old => { URL.revokeObjectURL(old[index].url); return old.filter((_, i) => i !== index); });
   }
@@ -68,7 +101,9 @@ export default function App() {
     setBusy(true); setError(""); setNotice("");
     try {
       const form = new FormData(); form.append("source", source);
-      if (source === "camera") photos.forEach(p => form.append("photos", p.file));
+      if (source !== "sample") {
+  photos.forEach(p => form.append("photos", p.file));
+}
       const result = await api("/api/scan", { method: "POST", body: form });
       setItems(result.items); setNotice(result.notice || "Scan complete.");
       photos.forEach(p => URL.revokeObjectURL(p.url)); setPhotos([]);
@@ -146,7 +181,24 @@ export default function App() {
       {cameraOpen && <section className="camera-panel">
         <div className="section-heading"><div><div className="eyebrow">STEP 01</div><h2>Let's take a look inside.</h2><p>Capture 1–3 clear photos of your fridge shelves and door.</p></div><button className="icon-button" onClick={() => { setCameraOpen(false); stopCamera(); }} aria-label="Close camera"><X/></button></div>
         <div className="camera-grid"><div className="camera-view">{streamError ? <div className="camera-error"><Camera size={28}/><p>{streamError}</p></div> : <video ref={videoRef} autoPlay playsInline muted/>}<span className="camera-count">{photos.length}/3 photos</span></div>
-          <div className="capture-side"><button className="btn btn-dark" onClick={takePhoto} disabled={photos.length >= 3}><Camera size={17}/> Capture photo</button><p className="helper">Tip: use good lighting and photograph one shelf at a time.</p><div className="photo-strip">{photos.map((p, i) => <div className="photo-thumb" key={p.url}><img src={p.url} alt={`Captured fridge view ${i + 1}`}/><button onClick={() => removePhoto(i)} aria-label="Delete photo"><X size={14}/></button></div>)}</div><button className="btn btn-green" disabled={!photos.length || busy} onClick={() => scan("camera")}>{busy ? <RefreshCw className="spin" size={16}/> : <Sparkles size={16}/>} {busy ? "Analyzing…" : "Analyze my fridge"}</button></div>
+          <div className="capture-side"><button className="btn btn-dark" onClick={takePhoto} disabled={photos.length >= 3}><Camera size={17}/> Capture photo</button>
+  <input
+    ref={fileInputRef}
+    type="file"
+    accept="image/*"
+    multiple
+    hidden
+    onChange={handleFileUpload}
+  />
+
+  <button
+    className="btn btn-outline"
+    onClick={() => fileInputRef.current?.click()}
+    disabled={photos.length >= 3}
+  >
+    <ImageIcon size={17} /> Upload from device
+  </button>
+<p className="helper">Tip: use good lighting and photograph one shelf at a time.</p><div className="photo-strip">{photos.map((p, i) => <div className="photo-thumb" key={p.url}><img src={p.url} alt={`Captured fridge view ${i + 1}`}/><button onClick={() => removePhoto(i)} aria-label="Delete photo"><X size={14}/></button></div>)}</div><button className="btn btn-green" disabled={!photos.length || busy} onClick={() => scan("camera")}>{busy ? <RefreshCw className="spin" size={16}/> : <Sparkles size={16}/>} {busy ? "Analyzing…" : "Analyze my fridge"}</button></div>
         </div>
       </section>}
 
